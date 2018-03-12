@@ -2,6 +2,12 @@
 
 """
 debaser.py
+v0.60 - 11032018
+  * Now accesses the reddit API using PRAW
+  * Default subreddit is now r/me_irl
+  * Downloads NSFW images by default
+  * Changed default limit to 10
+  * Now recognizes i.redd.it image links
 v0.55 - 10192012
   * Added support for Imgur albums if imguralbum.py is available
   * Added -a --album flag to allow for suppression of album downloads if desired.
@@ -44,7 +50,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 album_active = True # activate album downloads until told otherwise (v0.55)
 
-import reddit
+#import reddit
+import praw
 import os
 import subprocess # new for v0.55 - added for imgur album support
 import urllib
@@ -59,20 +66,20 @@ except:
 
 
 # add system argument for verbose mode
-verbose_mode = False
+verbose_mode = True
 overwrite_mode = False # added to support overwrite behavior (new default is no overwrite)
-nsfw_mode = False # added to support nsfw behavior (new default is NO nsfw items)
-current_version = "%prog 0.55-10192012"
+nsfw_mode = True # added to support nsfw behavior (new default is NO nsfw items)
+current_version = "%prog 0.60-11032018"
 current_dir = os.getcwd()
 
 ## start parse arguments
 usage = "usage: %prog [options] arg"
 parser = OptionParser(usage, version=current_version)
-parser.add_option("-s", "--subreddit", dest="subreddit", default="pics", help="name of subreddit | defaults to %default")
-parser.add_option("-f", "--filter", dest="filter", default="hot", help="filter: hot, top, controversial, new | defaults to %default")
-parser.add_option("-l", "--limit", dest="limit", default=5, help="limit of submissions to gather | defaults to %default")
+parser.add_option("-s", "--subreddit", dest="subreddit", default="me_irl", help="name of subreddit | defaults to %default")
+parser.add_option("-f", "--filter", dest="filter", default="top", help="filter: hot, top, controversial, new | defaults to %default")
+parser.add_option("-l", "--limit", dest="limit", default=10, help="limit of submissions to gather | defaults to %default")
 parser.add_option("-o", "--overwrite", action="store_true", dest="overwrite", help="automatically overwrite duplicate files (use with caution)") # added to support overwrite behavior
-parser.add_option("-n", "--nsfw", action="store_true", dest="nsfw", help="allow download of nsfw items") # added to support nsfw filtering
+parser.add_option("-n", "--nsfw", action="store_true", dest="nsfw", help="disallow download of nsfw items") # added to support nsfw filtering
 parser.add_option("-v", "--verbose", action="store_true", dest="verbose")
 parser.add_option("-q", "--quiet", action="store_false", dest="verbose")
 parser.add_option("-a", "--album", action="store_true", dest="album", help="disable Imgur album downloading even if imguralbum.py is available") # added v0.55 to support suppression of imgur album downloads (they take longer)
@@ -82,7 +89,7 @@ if options.verbose:
 if options.overwrite:
     overwrite_mode = True
 if options.nsfw:
-    nsfw_mode = True
+    nsfw_mode = False
 if options.album:
     album_active = False
 
@@ -100,15 +107,15 @@ submissions(subr_name, subr_filter, subr_limit)
 
   returns submissions [GENERATOR]
 """
-def submissions(subr_name='pics', subr_filter='hot', subr_limit=5):
+def submissions(subr_name='me_irl', subr_filter='top', subr_limit=10):
     if (subr_filter == 'hot'):
-        return r.get_subreddit(subr_name).get_hot(limit=subr_limit)
+        return r.subreddit(subr_name).hot(limit=subr_limit)
     elif (subr_filter == 'top'):
-        return r.get_subreddit(subr_name).get_top(limit=subr_limit)
+        return r.subreddit(subr_name).top(time_filter='day', limit=subr_limit)
     elif (subr_filter == 'new'):
-        return r.get_subreddit(subr_name).get_new(limit=subr_limit)
+        return r.subreddit(subr_name).new(limit=subr_limit)
     elif (subr_filter == 'controversial'):
-        return r.get_subreddit(subr_name).get_controversial(limit=subr_limit)
+        return r.subreddit(subr_name).controversial(limit=subr_limit)
 
 """
 build_imgur_dl(url)
@@ -125,7 +132,7 @@ def build_imgur_dl(url):
 
 
 # initialize reddit object
-r = reddit.Reddit(user_agent='sample_app')
+r = praw.Reddit('bot1')
 
 # get submissions as a list of objects
 subr_name = options.subreddit
@@ -153,7 +160,16 @@ for index, i in enumerate(sublist):
         print "permalink = " + i.permalink
     # parse out the url to get its parts as a 6-tuple
     parsed_url = urlparse(i.url)
-    if (parsed_url.netloc == 'i.imgur.com'):
+    if (parsed_url.netloc == 'i.redd.it'):
+        if verbose_mode: print "Direct reddit link. Downloading..."
+        if (not(overwrite_mode) and os.path.exists(os.path.join(current_dir, basename(parsed_url.path)))):
+            if verbose_mode: print "File already exists in " + current_dir + ". Downlaod aborted."
+            summary.append(i.url + " was previously downloaded.\nUse -o flag to enable overwrite mode.")
+            success -= 1
+        else:
+            savedto = urllib.urlretrieve(i.url, os.path.join(current_dir, basename(parsed_url.path)))
+            if verbose_mode: print savedto
+    elif (parsed_url.netloc == 'i.imgur.com'):
         if verbose_mode: print "Direct imgur link.  Downloading..."
         if (not(overwrite_mode) and os.path.exists(os.path.join(current_dir, basename(parsed_url.path)))):
             if verbose_mode: print "File already exists in " + current_dir + ".  Download aborted."

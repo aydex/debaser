@@ -2,3 +2,7 @@
 imguralbum.py
 imguralbum.pyc
 wxdebaser.py
+.idea
+.DS_Store
+praw.ini
+*.jpg
