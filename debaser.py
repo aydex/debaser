@@ -2,6 +2,8 @@
 
 """
 debaser.py
+v0.61 - 12032018
+  * Now downloads images to a directory for each subreddit. If it does not exist, it is created.
 v0.60 - 11032018
   * Now accesses the reddit API using PRAW
   * Default subreddit is now r/me_irl
@@ -48,31 +50,30 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
-album_active = True # activate album downloads until told otherwise (v0.55)
+album_active = True  # activate album downloads until told otherwise (v0.55)
 
-#import reddit
 import praw
 import os
 import subprocess # new for v0.55 - added for imgur album support
 import urllib
-from urlparse import urlparse # for parsing out *.jpg from url (python 2)
-from optparse import OptionParser # for parsing command line options
-from posixpath import basename # for url splitting on non-imgur urls
+from urlparse import urlparse  # for parsing out *.jpg from url (python 2)
+from optparse import OptionParser  # for parsing command line options
+from posixpath import basename  # for url splitting on non-imgur urls
 try:
     import imguralbum
 except:
     print "imguralbum.py not found.  Imgur album downloads will be disabled."
-    album_active=False
+    album_active = False
 
 
 # add system argument for verbose mode
 verbose_mode = True
-overwrite_mode = False # added to support overwrite behavior (new default is no overwrite)
-nsfw_mode = True # added to support nsfw behavior (new default is NO nsfw items)
+overwrite_mode = False  # added to support overwrite behavior (new default is no overwrite)
+nsfw_mode = True  # added to support nsfw behavior (new default is NO nsfw items)
 current_version = "%prog 0.60-11032018"
 current_dir = os.getcwd()
 
-## start parse arguments
+# start parse arguments
 usage = "usage: %prog [options] arg"
 parser = OptionParser(usage, version=current_version)
 parser.add_option("-s", "--subreddit", dest="subreddit", default="me_irl", help="name of subreddit | defaults to %default")
@@ -83,7 +84,7 @@ parser.add_option("-n", "--nsfw", action="store_true", dest="nsfw", help="disall
 parser.add_option("-v", "--verbose", action="store_true", dest="verbose")
 parser.add_option("-q", "--quiet", action="store_false", dest="verbose")
 parser.add_option("-a", "--album", action="store_true", dest="album", help="disable Imgur album downloading even if imguralbum.py is available") # added v0.55 to support suppression of imgur album downloads (they take longer)
-(options, args) = parser.parse_args() 
+(options, args) = parser.parse_args()
 if options.verbose:
     verbose_mode = True
 if options.overwrite:
@@ -93,7 +94,7 @@ if options.nsfw:
 if options.album:
     album_active = False
 
-## end parse arguments
+# end parse arguments
 
 
 """
@@ -107,6 +108,8 @@ submissions(subr_name, subr_filter, subr_limit)
 
   returns submissions [GENERATOR]
 """
+
+
 def submissions(subr_name='me_irl', subr_filter='top', subr_limit=10):
     if (subr_filter == 'hot'):
         return r.subreddit(subr_name).hot(limit=subr_limit)
@@ -126,6 +129,8 @@ build_imgur_dl(url)
 
   returns direct link url [STRING]
 """
+
+
 def build_imgur_dl(url):
     return 'http://' + 'i.' + url.netloc + url.path + '.jpg'
     # to be added: exceptions for if it's a png or gif
@@ -146,13 +151,20 @@ sublist = list(sublist)
 # main parse & download loop
 success = len(sublist)
 summary = []
+
+# create subreddit directory if it does not exist
+if not os.path.exists(current_dir + '/' + options.subreddit):
+    if verbose_mode: print "Directory for r/" + options.subreddit + " does not exist. Creating it now."
+    os.makedirs(current_dir + '/' + options.subreddit)
+
+
 for index, i in enumerate(sublist):
     if (not(nsfw_mode) and i.over_18):
         if verbose_mode: print "NSFW submission found!  Skipping!"
         summary.append("Submission #" + str(index) + " was tagged as not safe for work. Use -n flag to enable nsfw mode.")
         success -= 1
         continue
-    if verbose_mode: 
+    if verbose_mode:
         if not(i.over_18):
             print str(index) + ": " + i.title + " :: " + i.url
         else:
@@ -162,21 +174,21 @@ for index, i in enumerate(sublist):
     parsed_url = urlparse(i.url)
     if (parsed_url.netloc == 'i.redd.it'):
         if verbose_mode: print "Direct reddit link. Downloading..."
-        if (not(overwrite_mode) and os.path.exists(os.path.join(current_dir, basename(parsed_url.path)))):
+        if (not(overwrite_mode) and os.path.exists(os.path.join(current_dir + '/' + options.subreddit, basename(parsed_url.path)))):
             if verbose_mode: print "File already exists in " + current_dir + ". Downlaod aborted."
             summary.append(i.url + " was previously downloaded.\nUse -o flag to enable overwrite mode.")
             success -= 1
         else:
-            savedto = urllib.urlretrieve(i.url, os.path.join(current_dir, basename(parsed_url.path)))
+            savedto = urllib.urlretrieve(i.url, os.path.join(current_dir +'/' + options.subreddit, basename(parsed_url.path)))
             if verbose_mode: print savedto
     elif (parsed_url.netloc == 'i.imgur.com'):
         if verbose_mode: print "Direct imgur link.  Downloading..."
-        if (not(overwrite_mode) and os.path.exists(os.path.join(current_dir, basename(parsed_url.path)))):
+        if (not(overwrite_mode) and os.path.exists(os.path.join(current_dir + '/' + options.subreddit, basename(parsed_url.path)))):
             if verbose_mode: print "File already exists in " + current_dir + ".  Download aborted."
             summary.append(i.url + " was previously downloaded.\nUse -o flag to enable overwrite mode.")
             success -= 1
         else:
-            savedto = urllib.urlretrieve(i.url, os.path.join(current_dir, basename(parsed_url.path)))
+            savedto = urllib.urlretrieve(i.url, os.path.join(current_dir + '/' + options.subreddit, basename(parsed_url.path)))
             if verbose_mode: print savedto
     elif (parsed_url.netloc == 'imgur.com'):
         # imguralbum.py support added in v0.55
@@ -184,9 +196,11 @@ for index, i in enumerate(sublist):
             if verbose_mode: print "Imgur album path.  Downloading..."
 
             if album_active:
-                # Only checks if album path already exists.  If it does, it won't try re-downloading the files within the album
-                # regardless of whether they have changed.  This is the simplest solution at the moment.  A better one will follow.
-                if (not(overwrite_mode) and os.path.exists(os.path.join(current_dir, basename(parsed_url.path)))):
+                # Only checks if album path already exists.
+                # If it does, it won't try re-downloading the files within the album
+                # regardless of whether they have changed.
+                # This is the simplest solution at the moment.  A better one will follow.
+                if (not(overwrite_mode) and os.path.exists(os.path.join(current_dir + '/' + options.subreddit, basename(parsed_url.path)))):
                     if verbose_mode: print "Album path already exists in current directory.  Contents will not be re-downloaded."
                     summary.append(i.url + " already exists as an album path.\nUse -o flag to enable overwrite mode.")
                     success -= 1
@@ -201,36 +215,37 @@ for index, i in enumerate(sublist):
                 success -= 1
 
         else:
-            if (not(overwrite_mode) and os.path.exists(current_dir + parsed_url.path + '.jpg')): # fixed overwrite bug by adding .jpg & modifying path join
-                 if verbose_mode: print "File already exits in " + current_dir + ".  Download aborted."
+            if not(overwrite_mode) and os.path.exists(current_dir + '/' + options.subreddit + parsed_url.path + '.jpg'): # fixed overwrite bug by adding .jpg & modifying path join
+                 if verbose_mode: print "File already exits in " + current_dir + '/' + options.subreddit + ".  Download aborted."
                  summary.append(i.url + " was already downloaded.\nUse -o flag to enable overwrite mode.")
                  success -= 1
             else:
                  if verbose_mode: print "Indirect imgur link.  Downloading..."
-                 # this path joining needs to be fixed for cross-platform compatibility
-                 savedto = urllib.urlretrieve(build_imgur_dl(parsed_url), current_dir + parsed_url.path + '.jpg') #build imgur direct link & download it
+                # this path joining needs to be fixed for cross-platform compatibility
+                 savedto = urllib.urlretrieve(build_imgur_dl(parsed_url), current_dir + '/' + options.subreddit + parsed_url.path + '.jpg') #build imgur direct link & download it
                  if verbose_mode: print savedto
     else:
         plen = len(parsed_url.path)
-        if (parsed_url.path[plen-4:plen].lower() == '.jpg' or parsed_url.path[plen-4:plen].lower() == '.gif' or parsed_url.path[plen-4:plen].lower() == '.png' or  parsed_url.path[plen-4:plen].lower() == '.jpeg'): # added .lower() to all results to allow for uppercase file extensions
-            if (not(overwrite_mode) and os.path.exists(os.path.join(current_dir, basename(parsed_url.path)))):
-                 if verbose_mode: print "File already exists in " + current_dir + ".  Download aborted."
+        if parsed_url.path[plen-4:plen].lower() == '.jpg' or parsed_url.path[plen-4:plen].lower() == '.gif' or parsed_url.path[plen-4:plen].lower() == '.png' or parsed_url.path[plen-4:plen].lower() == '.jpeg': # added .lower() to all results to allow for uppercase file extensions
+            if not(overwrite_mode) and os.path.exists(os.path.join(current_dir + '/' + options.subreddit, basename(parsed_url.path))):
+                 if verbose_mode: print "File already exists in " + current_dir + '/' + options.subreddit + ".  Download aborted."
                  summary.append(i.url + " was already downloaded.\nUse -o flag to enable overwrite mode.")
                  success -= 1
             else:
                  if verbose_mode: print "Unknown source.  Downloading..."
-                 savedto = urllib.urlretrieve(i.url, os.path.join(current_dir, basename(parsed_url.path)))
+                 savedto = urllib.urlretrieve(i.url, os.path.join(current_dir + '/' + options.subreddit, basename(parsed_url.path)))
                  if verbose_mode: print savedto
         else:
             if verbose_mode: print "Unknown HTML encountered.  Download abort."
             summary.append(i.url + " is an unsupported URL.\nNo image files found.")
             success -= 1
 
-if verbose_mode: 
+if verbose_mode:
     print "\n" + str(success) + " of " + str(len(sublist)) + " files downloaded."
     if len(summary) > 0:
         print "\nSummary of errors:"
         for i in summary:
             print i
 
-    # to be added - urllib.urlretrieve exception IOError if something goes wrong.  Possibly break into a subroutine to simplify and make it pretty.
+    # to be added - urllib.urlretrieve exception IOError if something goes wrong.
+            # Possibly break into a subroutine to simplify and make it pretty.
