@@ -9,6 +9,13 @@ Debaser is a simple image scouring utility for Reddit.  It is free and open
 source, and written in Python using the reddit_api bindings.
 ===============================================================================
 >> VERSION INFORMATION
+v0.60 - 11032018
+  * Now accesses the reddit API using PRAW
+  * Default subreddit is now r/me_irl
+  * Downloads NSFW images by default
+  * Changed default limit to 10
+  * Now recognizes i.redd.it image links
+  
 v0.55 - 10192012
   * Added support for Imgur albums if imguralbum.py is available
   * Added -a --album flag to allow for suppression of album downloads if desired.
